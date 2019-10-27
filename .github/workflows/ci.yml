@@ -1,0 +1,30 @@
+name: CI workflow
+on: [push]
+
+jobs:
+  build:
+    name: Build job
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+    steps:
+      # Install Node.js at a fixed version
+      - uses: actions/setup-node@master
+        with:
+          node-version: "12.0.0"
+      # Install Python at a fixed version
+      - uses: actions/setup-python@master
+        with:
+          python-version: "3.7.4"
+
+      - name: install mercurial (win)
+        if: matrix.os == 'windows-latest'
+        run: choco install hg
+
+      - name: install mercurial (linux / macos)
+        if: matrix.os != 'windows-latest'
+        env:
+          HGPYTHON3: 1
+        run: pip install mercurial
