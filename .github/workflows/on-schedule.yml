@@ -1,0 +1,31 @@
+name: OnSchedule CI workflow
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+
+jobs:
+  run-task-and-create-pr:
+    name: "Run some task and create a pull request"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: "10.x"
+      - name: apply and commit some changes
+        run: |
+          git log -r .
+          date +%Y%m%d-%H:%M > newfile
+          git add newfile
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git commit -m 'commit changes applied'
+          git log -r .
+      - name: pull-request
+        uses: peter-evans/create-pull-request@v2
+        with:
+          commit-message: "chore: automated pullrequest"
+          title: "chore: automated pullrequest"
+          body: |
+            body of the pull request
+          branch: test/automated-pr-1
