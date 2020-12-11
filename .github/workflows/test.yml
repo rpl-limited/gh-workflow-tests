@@ -1,0 +1,18 @@
+name: CI workflow test
+on: [push]
+
+jobs:
+  build:
+    name: Build job
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+      - name: whoami
+        run: |
+          echo "::echo::on"
+          echo "::debug::My debug message"
+          echo whoami: `whoami`
+          echo whereami: `pwd`
