@@ -1,0 +1,15 @@
+name: CI workflow test
+on: workflow_dispatch
+
+jobs:
+  build:
+    name: Build job
+    runs-on: ubuntu-20.04
+    steps:
+      - name: whoami
+        run: |
+          echo "::echo::on"
+          echo "::debug::My debug message"
+          echo whoami: `whoami`
+          echo whereami: `pwd`
+          echo dirlist: `ls -R .`
