@@ -1,0 +1,89 @@
+name: addons-linter JSONSchema Updates
+on: workflow_dispatch
+
+jobs:
+  build:
+    name: Build job
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout addons-linter
+        uses: actions/checkout@v2
+        with:
+          repository: "mozilla/addons-linter"
+          path: "addons-linter"
+          fetch-depth: 1
+      - name: partial checkout gecko-dev beta branch
+        run: |
+          # Run a quicker partial clone for the gecko-dev beta branch.
+          git clone -b beta \
+                    --depth 1  \
+                    --filter=blob:none  \
+                    --no-checkout \
+                    https://github.com/mozilla/gecko-dev \
+                    gecko-dev--beta-partial
+          pushd gecko-dev--beta-partial
+          # checkout only the subset of files we need to import the schema data.
+          git checkout beta -- browser/config/version_display.txt \
+                               toolkit/components/extensions/schemas \
+                               browser/components/extensions/schemas \
+                               mobile/android/components/extensions/schemas
+          popd
+      - name: Importing schema data gecko-dev beta branch
+        id: schema-import
+        run: |
+          export GECKO_DIR="gecko-dev--beta-partial"
+          export GECKO_VERSION_PATH="browser/config/version_display.txt"
+          export GECKO_VERSION_DISPLAY=`cat $GECKO_DIR/$GECKO_VERSION_PATH`
+          echo "Importing schema data from gecko $GECKO_VERSION_DISPLAY"
+          echo "IMPORT_GECKO_VERSION=$GECKO_VERSION_DISPLAY" >> $GITHUB_ENV
+          pushd addons-linter
+          npm ci
+          ./scripts/firefox-schema-import ../gecko-dev--beta-partial &> ../import-errors.log && (
+            echo "IMPORT_RESULT=success" >> $GITHUB_ENV
+            echo "IMPORT_PATCH<<EOF" >> $GITHUB_ENV
+            git diff src/schema/imported >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          ) || (
+            echo "IMPORT_RESULT=error" >> $GITHUB_ENV
+            echo "IMPORT_ERRORS<<EOF" >> $GITHUB_ENV
+            cat ../import-errors.log >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          )
+          popd
+      - name: File issue on CI job broken
+        uses: imjohnbo/issue-bot@v3
+        if: failure()
+        env:
+          WORKFLOW_NAME: ${{github.workflow}}
+          WORKFLOW_URL: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}
+        with:
+          pinned: true
+          labels: addons-linter, ci-job-broken
+          title: addons-linter - Import schema CI job "${{env.WORKFLOW_NAME}}" is broken
+          body: |
+            :wave: Hey, the CI job seems to be broken, you may want to take a look:
+            ${{ env.WORKFLOW_URL }} 
+      - name: File issue to track new schema updates
+        uses: imjohnbo/issue-bot@v3
+        if: ${{ env.IMPORT_RESULT == 'success' && env.IMPORT_PATCH != '' }}
+        with:
+          pinned: true
+          labels: addons-linter, schema-update-changes:${{env.IMPORT_GECKO_VERSION}}
+          title: addons-linter - Import schema updates from Gecko ${{env.IMPORT_GECKO_VERSION}}
+          body: |
+            :wave: Hey, there are some JSON schema data to import in the addons-linter:
+            ```diff
+            ${{env.IMPORT_PATCH}}
+            ```
+      - name: File issue to track schema update errors
+        uses: imjohnbo/issue-bot@v3
+        if: ${{ env.IMPORT_RESULT == 'error' }}
+        with:
+          pinned: true
+          labels: addons-linter, schema-update-errors:${{env.IMPORT_GECKO_VERSION}}
+          title: addons-linter - Import schema updates error on Gecko ${{env.IMPORT_GECKO_VERSION}}
+          body: |
+            There are some errors while importing JSON schema data in the addons-linter:
+            ```
+            ${{env.IMPORT_ERRORS}}
+            ```
